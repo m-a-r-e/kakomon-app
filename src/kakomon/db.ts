@@ -26,6 +26,7 @@ export interface QuestionRecord {
   year: number | null;
   number: string | null; // 本の表記のまま。"3" や "1-1"
   category: string;
+  passage: string; // ページ共通の記述文(穴埋め本文)。無ければ空
   question: string;
   choices: string[];
   answer: number | null; // 1-5

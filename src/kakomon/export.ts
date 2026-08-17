@@ -11,7 +11,7 @@ function csvEscape(v: string): string {
 
 export function questionsToCsv(qs: QuestionRecord[], figureNames: Map<string, string[]>): string {
   const header = [
-    "id", "year", "number", "category", "question",
+    "id", "year", "number", "category", "passage", "question",
     "choice1", "choice2", "choice3", "choice4", "choice5",
     "answer", "figures", "note",
   ];
@@ -22,6 +22,7 @@ export function questionsToCsv(qs: QuestionRecord[], figureNames: Map<string, st
       q.year?.toString() ?? "",
       q.number?.toString() ?? "",
       q.category,
+      q.passage ?? "",
       q.question,
       ...[0, 1, 2, 3, 4].map((i) => q.choices[i] ?? ""),
       q.answer?.toString() ?? "",
@@ -55,6 +56,7 @@ export async function buildExportZip(qs: QuestionRecord[]): Promise<Blob> {
       year: q.year,
       number: q.number,
       category: q.category,
+      passage: q.passage ?? "",
       question: q.question,
       choices: q.choices,
       answer: q.answer,

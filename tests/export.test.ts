@@ -1,7 +1,7 @@
 import { questionsToCsv, buildExportZip } from "../src/kakomon/export";
 import { unzipSync } from "fflate";
 const q = {
-  id: "2023-q01", year: 2023, number: "1", category: "色彩",
+  id: "2023-q01", year: 2023, number: "1", category: "色彩", passage: "",
   question: '曖昧な"引用"と,カンマ\n改行を含む問題文', choices: ["a","b","c","d","e"],
   answer: 3, figures: [{ id: "f1", blob: new Blob([new Uint8Array([137,80,78,71])]) }],
   note: "", sourcePageIds: ["p1"], createdAt: 0,

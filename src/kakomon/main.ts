@@ -1,13 +1,8 @@
 import "./styles.css";
 import { db, uid, type PageRecord, type QuestionRecord, type FigureRecord } from "./db";
-import { parseLines, type OcrLine, type QuestionDraft } from "./parser";
+import { parseLines, CATEGORIES, type OcrLine, type QuestionDraft } from "./parser";
 import { buildExportZip, downloadBlob } from "./export";
 import type { WorkerResponse } from "../worker/ocr.worker";
-
-const CATEGORIES = [
-  "", "誕生・歴史", "インテリア計画", "構造・工法", "内装材・仕上げ", "色彩",
-  "照明", "家具", "ファブリックス", "住宅設備", "法規・制度", "販売・接客", "その他",
-];
 
 const view = document.getElementById("view")!;
 const tabs = [...document.querySelectorAll<HTMLButtonElement>("nav.tabs button")];
@@ -382,6 +377,15 @@ async function renderReviewEditor(pageId: string): Promise<void> {
 
   // 問題ドラフト
   const drafts = parseLines(page.ocrLines ?? []);
+
+  // 共通の記述文(【ア】〜【エ】の穴埋め本文)。ページ単位なのでここで1回だけ直す
+  const passageRow = el(`
+    <div class="field">
+      <label for="pgpassage">共通の問題文(このページの問題すべてに適用)</label>
+      <textarea id="pgpassage" rows="5" placeholder="【 ア 】などの空欄を含む本文。認識が乱れていればここで直してください">${escapeHtml(drafts[0]?.passage ?? "")}</textarea>
+    </div>`);
+  view.append(passageRow);
+
   const cardsBox = el(`<div></div>`);
   for (const d of drafts) cardsBox.append(buildQuestionCard(d, page, crop, hint, canvas));
   view.append(cardsBox);
@@ -389,7 +393,14 @@ async function renderReviewEditor(pageId: string): Promise<void> {
   const addBtn = el(`<button class="ghost">+ 問題を手動で追加</button>`);
   addBtn.addEventListener("click", () => {
     cardsBox.append(buildQuestionCard(
-      { number: null, question: "", choices: ["", "", "", "", ""], rawText: "" },
+      {
+        number: null,
+        category: drafts[0]?.category ?? "",
+        passage: drafts[0]?.passage ?? "",
+        question: "",
+        choices: ["", "", "", "", ""],
+        rawText: "",
+      },
       page, crop, hint, canvas,
     ));
   });
@@ -426,7 +437,7 @@ function buildQuestionCard(
         </div>
       </div>
       <div class="field"><label>分野</label>
-        <select data-f="category">${CATEGORIES.map((c)=>`<option value="${c}">${c || "未分類"}</option>`).join("")}</select>
+        <select data-f="category">${CATEGORIES.map((c)=>`<option value="${c}"${c === d.category ? " selected" : ""}>${c || "未分類"}</option>`).join("")}</select>
       </div>
       <div class="field"><label>問題文</label><textarea data-f="question">${escapeHtml(d.question)}</textarea></div>
       <div data-choices>
@@ -468,9 +479,12 @@ function buildQuestionCard(
     const baseId = `${year ?? "y"}-q${number ?? "x"}`;
     let id = baseId;
     for (let n = 2; await db.getQuestion(id); n++) id = `${baseId}-${n}`;
+    const passage =
+      (document.getElementById("pgpassage") as HTMLTextAreaElement | null)?.value.trim() ?? "";
     const rec: QuestionRecord = {
       id, year, number,
       category: get("category"),
+      passage,
       question, choices,
       answer: answerStr ? parseInt(answerStr, 10) : null,
       figures: [...figures],

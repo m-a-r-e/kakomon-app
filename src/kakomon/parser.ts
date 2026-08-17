@@ -13,9 +13,43 @@ export interface OcrLine {
   conf: number;
 }
 
+export const CATEGORIES = [
+  "", "誕生・歴史", "インテリア計画", "構造・工法", "内装材・仕上げ", "色彩",
+  "照明", "家具", "ファブリックス", "住宅設備", "法規・制度", "販売・接客", "その他",
+];
+
+// 分野の推定。章題は完全一致しない("1. インテリア販売" → "販売・接客")ので
+// キーワードで寄せる。上から順に見るので、紛れやすい語ほど後ろに置く
+const CATEGORY_KEYWORDS: [string, RegExp][] = [
+  ["販売・接客", /販売|接客|営業|流通|商品知識|見積/],
+  ["誕生・歴史", /歴史|様式|誕生|年表/],
+  ["色彩", /色彩|配色|マンセル|色相|明度|彩度/],
+  ["照明", /照明|光源|ランプ|照度|グレア/],
+  ["ファブリックス", /ファブリック|織物|カーテン|繊維|布地/],
+  ["家具", /家具|椅子|いす座|収納家具|ソファ/],
+  ["住宅設備", /設備|給排水|給湯|空調|換気|衛生|コンセント/],
+  ["法規・制度", /法規|制度|建築基準法|品確法|規格/],
+  ["構造・工法", /構造|工法|軸組|ラーメン|基礎|耐力壁/],
+  ["内装材・仕上げ", /内装|仕上げ|床材|壁材|クロス|塗装/],
+  ["インテリア計画", /計画|人間工学|寸法|動線|住まい方/],
+];
+
+/** 章題はページ上部にあるので先頭数行を優先し、無ければ全体から探す */
+export function guessCategory(lines: string[]): string {
+  const head = lines.slice(0, 3).join(" ");
+  for (const [cat, re] of CATEGORY_KEYWORDS) if (re.test(head)) return cat;
+  const all = lines.join(" ");
+  for (const [cat, re] of CATEGORY_KEYWORDS) if (re.test(all)) return cat;
+  return "";
+}
+
 export interface QuestionDraft {
   /** 本の表記をそのまま持つ。"3"(第3問) や "1-1"(□1-1) など */
   number: string | null;
+  /** ページ全体から推定した分野。CATEGORIES のいずれか */
+  category: string;
+  /** ページ共通の記述文(【ア】〜【エ】の穴埋め本文)。同一ページの全問で同じ値 */
+  passage: string;
   question: string;
   choices: string[];
   rawText: string; // この問題に属する全行(修正時の参照用)
@@ -53,6 +87,21 @@ const SUB_HEAD_LOOSE = /^[□口■▢〼]\s*([0-9]{1,3})?\s*([-−ー―—‐�
 // 日本語を1文字も含まず、2文字以上つながった英単語もない行は本文とみなさない
 const CJK = /[぀-ヿ㐀-鿿豈-﫿]/;
 const isNoiseLine = (t: string) => !CJK.test(t) && !/[A-Za-z]{2,}/.test(t);
+
+// 記述文には含めない行: 章題("1. インテリア販売")、回次・チェック欄、重要度
+const PASSAGE_DROP = /^重要度|チェック|^第\s*[0-9]+\s*回|^[0-9]+\s*[.．]\s*\S/;
+
+/** 見出しより前の行から、ページ共通の記述文だけを取り出す */
+export function extractPassage(preamble: string[]): string {
+  return preamble
+    .map((t) => t.trim())
+    .filter((t) =>
+      t &&
+      !PAGE_FURNITURE.test(toHalfWidth(t)) &&
+      !isNoiseLine(t) &&
+      !PASSAGE_DROP.test(toHalfWidth(t)))
+    .join("");
+}
 
 export interface SubHead {
   major: string | null;
@@ -138,7 +187,7 @@ export function parseLines(lines: OcrLine[]): QuestionDraft[] {
       lastMajor = major;
       lastMinor = parseInt(minor, 10) || lastMinor + 1;
       push();
-      cur = { number: `${major}-${minor}`, question: "", choices: ["", "", "", "", ""], rawText: text };
+      cur = { number: `${major}-${minor}`, category: "", passage: "", question: "", choices: ["", "", "", "", ""], rawText: text };
       curChoice = -1;
       continue;
     }
@@ -148,8 +197,31 @@ export function parseLines(lines: OcrLine[]): QuestionDraft[] {
       const mm = head.number.match(/^([0-9]+)-([0-9]+)$/);
       if (mm) { lastMajor = mm[1]; lastMinor = parseInt(mm[2], 10); }
       push();
-      cur = { number: head.number, question: head.rest, choices: ["", "", "", "", ""], rawText: text };
+      cur = { number: head.number, category: "", passage: "", question: head.rest, choices: ["", "", "", "", ""], rawText: text };
       curChoice = -1;
+      continue;
+    }
+
+    // 見出し行をOCRが落としても復帰できるようにする。
+    // この書式では ① は必ず小問の選択肢の先頭にしか現れないので、
+    // 「まだ小問が始まっていない」か「既に選択肢が入っている」ところに ① が来たら、
+    // 見出しを取り逃したとみなして次の小問を開き直す
+    const firstCircled = text.startsWith(CIRCLED[0]);
+    if (firstCircled && (!cur || curChoice >= 0)) {
+      // 直前の行が "【 ア 】の部分" のような設問文なら、それを問題文として拾う
+      const stem: string = cur ? "" : (preamble[preamble.length - 1] ?? "");
+      lastMinor += 1;
+      push();
+      cur = {
+        number: `${lastMajor}-${lastMinor}`,
+        category: "",
+        passage: "",
+        question: isNoiseLine(stem) ? "" : stem,
+        choices: ["", "", "", "", ""],
+        rawText: text,
+      };
+      curChoice = 0;
+      cur.choices[0] = matchChoice(text)!.text;
       continue;
     }
 
@@ -181,11 +253,17 @@ export function parseLines(lines: OcrLine[]): QuestionDraft[] {
   }
   push();
 
+  // 分野と共通の記述文はページ単位なので、全ドラフトに同じ値を配る
+  const category = guessCategory(lines.map((l) => l.text));
+  const passage = extractPassage(preamble);
+
   if (drafts.length === 0 && preamble.length > 0) {
     // 1問も検出できなかった: 生テキストのみのドラフトを返す
     return [
       {
         number: null,
+        category,
+        passage,
         question: "",
         choices: ["", "", "", "", ""],
         rawText: preamble.join("\n"),
@@ -195,5 +273,6 @@ export function parseLines(lines: OcrLine[]): QuestionDraft[] {
   if (drafts.length > 0 && preamble.length > 0) {
     drafts[0].rawText = preamble.join("\n") + "\n---\n" + drafts[0].rawText;
   }
+  for (const d of drafts) { d.category = category; d.passage = passage; }
   return drafts;
 }

@@ -1,4 +1,4 @@
-import { parseLines, matchQuestionHead, matchChoice, type OcrLine } from "../src/kakomon/parser";
+import { parseLines, matchQuestionHead, matchChoice, guessCategory, type OcrLine } from "../src/kakomon/parser";
 
 let pass = 0, fail = 0;
 function eq(actual: unknown, expected: unknown, label: string) {
@@ -117,6 +117,56 @@ eq(real[2].choices.slice(0, 3), ["DK型", "LD型", "LDK型"], "3問目の選択�
 eq(real[1].question, "イ1の部分", "括弧落ちの設問文を選択肢イと誤検出しない");
 eq(matchChoice("ア1の部分"), null, "区切りなしのカナは選択肢とみなさない");
 eq(matchChoice("ウ LED照明"), { index: 3, text: "LED照明" }, "区切りありのカナは従来どおり");
+
+// 見出し行をOCRが完全に落としたケース(1-1の見出しだけ消える)
+const lost = parseLines(L([
+  "日本における住まい方に関する次の記述の【　】部分に、",
+  "【　ア　】の部分",
+  "① 折敷(おしき)",
+  "② 箱膳",
+  "③ 卓袱台(ちゃぶだい)",
+  "□1-2",
+  "【　イ　】の部分",
+  "① 標準化",
+  "② 和洋折衷",
+  "③ 食寝分離",
+]));
+eq(lost.length, 2, "見出しが落ちても①から小問を復帰させる");
+eq(lost[0].number, "1-1", "復帰した小問の番号");
+eq(lost[0].question, "【　ア　】の部分", "直前行を問題文として拾う");
+eq(lost[0].choices.slice(0, 3), ["折敷(おしき)", "箱膳", "卓袱台(ちゃぶだい)"], "復帰した小問の選択肢");
+eq(lost[1].number, "1-2", "後続の見出しは通常どおり");
+
+// 見出しも①も無い連続選択肢では区切らない(本試験書式を壊さない)
+const plain = parseLines(L([
+  "第1問 次の記述のうち",
+  "1 バウハウス",
+  "2 アール・デコ",
+]));
+eq(plain.length, 1, "本試験書式は従来どおり1問");
+
+// 分野の推定と共通の記述文
+eq(guessCategory(["1. インテリア販売　①住宅と社会", "第38回", "重要度★★★"]), "販売・接客", "章題から分野を推定");
+eq(guessCategory(["3. 色彩", "マンセル表色系について"]), "色彩", "色彩");
+eq(guessCategory(["まったく無関係な文章"]), "", "該当なしは空");
+
+const withPassage = parseLines(L([
+  "1. インテリア販売　①住宅と社会",
+  "第38回(2020年)第1問／チェック□□□",
+  "重要度★★★",
+  "1",
+  "日本における住まい方に関する次の記述の【　ア　】部分に、",
+  "最も適当なものを選びなさい。",
+  "□1-1",
+  "【　ア　】の部分",
+  "① 折敷(おしき)",
+]));
+eq(withPassage[0].category, "販売・接客", "全ドラフトに分野が入る");
+eq(
+  withPassage[0].passage,
+  "日本における住まい方に関する次の記述の【　ア　】部分に、最も適当なものを選びなさい。",
+  "章題・回次・重要度・大問番号を除いた記述文",
+);
 
 // 1問も検出できないケース
 const none = parseLines(L(["ただの説明文です", "見出しはありません"]));
