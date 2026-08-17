@@ -43,21 +43,6 @@ export const MODEL_PRESETS: ModelPreset[] = [
       name: "parseq-ndl-16x768-100-tiny-165epoch-tegaki2.onnx",
     },
   },
-  {
-    id: "fast",
-    label: "高速 (28MB)",
-    description: "検出INT8 + 認識INT8 — 最速。認識も量子化するので精度は落ちる",
-    deim: {
-      url: `${import.meta.env.BASE_URL}models/deim-s-1024x1024_int8.onnx`,
-      inputShape: [1, 3, 800, 800],
-      name: "deim-s-1024x1024_int8.onnx",
-    },
-    parseq: {
-      url: `${import.meta.env.BASE_URL}models/parseq-ndl-16x768-100-tiny-165epoch-tegaki2_int8.onnx`,
-      inputShape: [1, 3, 16, 768],
-      name: "parseq-ndl-16x768-100-tiny-165epoch-tegaki2_int8.onnx",
-    },
-  },
 ];
 
 export const DEFAULT_PRESET_ID = "standard";

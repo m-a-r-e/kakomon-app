@@ -10,7 +10,11 @@ let currentTab = "import";
 
 // ---------- 設定(localStorage) ----------
 const settings = {
-  get preset(): string { return localStorage.getItem("kk-preset") ?? "lite"; },
+  // "fast"(認識までINT8)は精度が実用に耐えなかったため廃止。選択済みなら lite に戻す
+  get preset(): string {
+    const v = localStorage.getItem("kk-preset") ?? "lite";
+    return v === "fast" ? "lite" : v;
+  },
   set preset(v: string) { localStorage.setItem("kk-preset", v); },
   get year(): string { return localStorage.getItem("kk-year") ?? ""; },
   set year(v: string) { localStorage.setItem("kk-year", v); },
@@ -170,7 +174,6 @@ async function renderImport(): Promise<void> {
     <div class="field" style="margin-top:12px">
       <label for="preset">認識モデル(初回のみダウンロード・以後は端末に保存)</label>
       <select id="preset">
-        <option value="fast">高速 (28MB・最速/精度は落ちる)</option>
         <option value="lite">軽量 (50MB・標準)</option>
         <option value="standard">標準 (77MB・高精度)</option>
       </select>
