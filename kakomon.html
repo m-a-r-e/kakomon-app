@@ -36,6 +36,10 @@
           sessionStorage.setItem("coi-reloaded", "1");
           location.reload();
         };
+        // 制御が移った瞬間にも読み直す(updatefound を取り逃した場合の保険)
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (!crossOriginIsolated && !sessionStorage.getItem("coi-reloaded")) reload();
+        });
         if (reg.active && !navigator.serviceWorker.controller) return reload();
         reg.addEventListener("updatefound", () => {
           const w = reg.installing;

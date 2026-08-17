@@ -41,6 +41,18 @@ export type WorkerResponse =
   | { type: "detect-done"; numDetections: number }
   | { type: "recognize-progress"; current: number; total: number }
   | {
+      // 速度の内訳。体感でなく数値で比較できるようにする
+      type: "stats";
+      threads: number;
+      isolated: boolean;
+      cores: number;
+      modelMs: number;
+      decodeMs: number;
+      detectMs: number;
+      recognizeMs: number;
+      lines: number;
+    }
+  | {
       type: "result";
       lines: { text: string; x: number; y: number; w: number; h: number; conf: number }[];
       detections: Detection[];
@@ -100,15 +112,19 @@ async function initModels(presetId: string): Promise<void> {
 
 async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
   try {
+    const t0 = performance.now();
     await initModels(presetId);
+    const tModel = performance.now();
 
     // Decode image
     const imageData = await decodeImage(imageBlob);
     const imgW = imageData.width;
     const imgH = imageData.height;
+    const tDecode = performance.now();
 
     // Detection
     const detections = await detector!.detect(imageData);
+    const tDetect = performance.now();
     post({ type: "detect-done", numDetections: detections.length });
 
     // Parse detections into element tree
@@ -159,6 +175,19 @@ async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
         post({ type: "recognize-progress", current: i + 1, total });
       }
     }
+
+    const tRecognize = performance.now();
+    post({
+      type: "stats",
+      threads: ort.env.wasm.numThreads ?? 1,
+      isolated: typeof SharedArrayBuffer !== "undefined",
+      cores: navigator.hardwareConcurrency || 0,
+      modelMs: Math.round(tModel - t0),
+      decodeMs: Math.round(tDecode - tModel),
+      detectMs: Math.round(tDetect - tDecode),
+      recognizeMs: Math.round(tRecognize - tDetect),
+      lines: total,
+    });
 
     post({ type: "result", lines: resultLines, detections, page });
   } catch (e) {

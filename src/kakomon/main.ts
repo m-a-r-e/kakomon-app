@@ -39,6 +39,9 @@ function getWorker(): Worker {
   return worker;
 }
 
+type Stats = Extract<WorkerResponse, { type: "stats" }>;
+let lastStats: Stats | null = null;
+
 function runOcrOnPage(page: PageRecord): Promise<OcrLine[]> {
   return new Promise((resolve, reject) => {
     const w = getWorker();
@@ -64,6 +67,9 @@ function runOcrOnPage(page: PageRecord): Promise<OcrLine[]> {
           queue.stage = "文字認識";
           queue.detail = `${m.current} / ${m.total} 行`;
           queue.ratio = m.total ? m.current / m.total : 0;
+          break;
+        case "stats":
+          lastStats = m;
           break;
         case "result":
           w.removeEventListener("message", onMsg);
@@ -181,6 +187,21 @@ async function renderImport(): Promise<void> {
 
   view.append(el(`<div id="qprog"></div>`));
   renderQueueProgress();
+
+  if (lastStats) {
+    const s = lastStats;
+    const sec = (ms: number) => (ms / 1000).toFixed(1);
+    const perLine = s.lines ? Math.round(s.recognizeMs / s.lines) : 0;
+    view.append(el(`
+      <details class="raw">
+        <summary>前回の処理時間を表示</summary>
+        <pre>スレッド: ${s.threads} (SharedArrayBuffer: ${s.isolated ? "有効" : "無効"} / ${s.cores}コア)
+モデル読込: ${sec(s.modelMs)}秒
+画像デコード: ${sec(s.decodeMs)}秒
+行の検出: ${sec(s.detectMs)}秒
+文字認識: ${sec(s.recognizeMs)}秒 (${s.lines}行 / 1行あたり${perLine}ms)</pre>
+      </details>`));
+  }
 
   if (pages.length === 0) {
     view.append(el(`<div class="empty">まだページがありません。<br>過去問を1ページずつ、影を避けて撮影してください。</div>`));
