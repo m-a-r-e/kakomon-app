@@ -6,7 +6,8 @@
   <meta name="theme-color" content="#fbfaf7" />
   <title>過去問取込帳</title>
   <link rel="manifest" href="./manifest.webmanifest" />
-  <script src="./coi-serviceworker.js"></script>
+  <!-- COOP/COEP は sw.js が付与する。coi-serviceworker.js と併用すると
+       同一スコープのSWを奪い合い、SharedArrayBuffer が無効化されるため統合した -->
 </head>
 <body>
   <header class="app">
@@ -25,7 +26,24 @@
   <script type="module" src="/src/kakomon/main.ts"></script>
   <script>
     if ("serviceWorker" in navigator && location.protocol === "https:") {
-      addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+      addEventListener("load", async () => {
+        const reg = await navigator.serviceWorker.register("./sw.js");
+        if (crossOriginIsolated) { sessionStorage.removeItem("coi-reloaded"); return; }
+        // 初回はSWの制御下に入っていないためヘッダが付かない。
+        // SharedArrayBuffer(=マルチスレッド)を有効にするため一度だけ読み直す
+        if (sessionStorage.getItem("coi-reloaded")) return;
+        const reload = () => {
+          sessionStorage.setItem("coi-reloaded", "1");
+          location.reload();
+        };
+        if (reg.active && !navigator.serviceWorker.controller) return reload();
+        reg.addEventListener("updatefound", () => {
+          const w = reg.installing;
+          w && w.addEventListener("statechange", () => {
+            if (w.state === "activated") reload();
+          });
+        });
+      });
     }
   </script>
 </body>

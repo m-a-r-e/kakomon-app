@@ -5,6 +5,7 @@
  * and posts results back to the main thread.
  */
 
+import * as ort from "onnxruntime-web";
 import { DEIMDetector, type Detection } from "../engine/deim";
 import { PARSeqRecognizer } from "../engine/parseq";
 import { cropImageData, decodeImage } from "../engine/image-utils";
@@ -21,6 +22,13 @@ import {
   DEFAULT_PRESET_ID,
   type ModelPreset,
 } from "../config/model-config";
+
+// crossOriginIsolated が成立していれば複数スレッドで回す。
+// SharedArrayBuffer が無い環境で numThreads > 1 にすると初期化に失敗するため必ず判定する
+ort.env.wasm.numThreads =
+  typeof SharedArrayBuffer === "undefined"
+    ? 1
+    : Math.max(1, Math.min(4, navigator.hardwareConcurrency || 1));
 
 // Message types
 export type WorkerMessage =

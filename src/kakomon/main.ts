@@ -163,7 +163,8 @@ async function renderImport(): Promise<void> {
     <div class="field" style="margin-top:12px">
       <label for="preset">認識モデル(初回のみダウンロード・以後は端末に保存)</label>
       <select id="preset">
-        <option value="lite">軽量 (50MB・高速)</option>
+        <option value="fast">高速 (28MB・最速/精度は落ちる)</option>
+        <option value="lite">軽量 (50MB・標準)</option>
         <option value="standard">標準 (77MB・高精度)</option>
       </select>
     </div>`);
