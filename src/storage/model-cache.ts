@@ -1,4 +1,9 @@
-import { get, set } from "idb-keyval";
+import { get, set, keys } from "idb-keyval";
+
+/** ダウンロード済みか。本体を読まずにキー一覧だけで判定する */
+export async function isModelCached(cacheKey: string): Promise<boolean> {
+  return (await keys()).includes(cacheKey);
+}
 
 export type ProgressCallback = (loaded: number, total: number) => void;
 

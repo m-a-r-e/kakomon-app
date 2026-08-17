@@ -34,6 +34,12 @@ function getWorker(): Worker {
   return worker;
 }
 
+// セッション構築はアプリを開くたび毎回発生し数秒かかる。
+// 撮影している間に済ませておく(未ダウンロードなら通信は始めない)
+function warmUpModels(): void {
+  getWorker().postMessage({ type: "warmup", presetId: settings.preset });
+}
+
 type Stats = Extract<WorkerResponse, { type: "stats" }>;
 let lastStats: Stats | null = null;
 
@@ -191,7 +197,7 @@ async function renderImport(): Promise<void> {
       <details class="raw">
         <summary>前回の処理時間を表示</summary>
         <pre>スレッド: ${s.threads} (SharedArrayBuffer: ${s.isolated ? "有効" : "無効"} / ${s.cores}コア)
-モデル読込: ${sec(s.modelMs)}秒
+モデル読込: ${sec(s.modelMs)}秒 (ダウンロード${sec(s.downloadMs)}秒 + 展開${sec(s.sessionMs)}秒)
 画像デコード: ${sec(s.decodeMs)}秒
 行の検出: ${sec(s.detectMs)}秒
 文字認識: ${sec(s.recognizeMs)}秒 (${s.lines}行 / 1行あたり${perLine}ms)</pre>
@@ -595,3 +601,4 @@ for (const b of tabs) {
 
 render();
 updateCounts();
+warmUpModels();

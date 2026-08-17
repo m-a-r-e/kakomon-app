@@ -16,7 +16,7 @@ import {
   type Element,
 } from "../parser/ndl-parser";
 import { evalPage } from "../reading-order/eval";
-import { fetchModel } from "../storage/model-cache";
+import { fetchModel, isModelCached } from "../storage/model-cache";
 import {
   MODEL_PRESETS,
   DEFAULT_PRESET_ID,
@@ -33,7 +33,9 @@ ort.env.wasm.numThreads =
 // Message types
 export type WorkerMessage =
   | { type: "run"; imageBlob: Blob; presetId: string }
-  | { type: "init"; presetId: string };
+  | { type: "init"; presetId: string }
+  // 既にダウンロード済みのときだけ先にセッションを組んでおく
+  | { type: "warmup"; presetId: string };
 
 export type WorkerResponse =
   | { type: "init-progress"; model: string; loaded: number; total: number }
@@ -47,6 +49,8 @@ export type WorkerResponse =
       isolated: boolean;
       cores: number;
       modelMs: number;
+      downloadMs: number;
+      sessionMs: number;
       decodeMs: number;
       detectMs: number;
       recognizeMs: number;
@@ -73,11 +77,22 @@ function getPreset(presetId: string): ModelPreset {
     ?? MODEL_PRESETS.find((p) => p.id === DEFAULT_PRESET_ID)!;
 }
 
+let initTiming = { downloadMs: 0, sessionMs: 0 };
+// 起動時のウォームアップと認識開始が重なっても二重初期化しないよう直列化する
+let initChain: Promise<void> = Promise.resolve();
+
+function ensureModels(presetId: string): Promise<void> {
+  initChain = initChain.catch(() => {}).then(() => initModels(presetId));
+  return initChain;
+}
+
 async function initModels(presetId: string): Promise<void> {
+  const tStart = performance.now();
   const preset = getPreset(presetId);
 
   // プリセットが同じなら再初期化不要
   if (currentPresetId === preset.id && detector && recognizer) {
+    initTiming = { downloadMs: 0, sessionMs: 0 };
     post({ type: "init-done" });
     return;
   }
@@ -95,7 +110,11 @@ async function initModels(presetId: string): Promise<void> {
     (loaded, total) =>
       post({ type: "init-progress", model: "DEIM (検出)", loaded, total }),
   );
+  const tDeimFetched = performance.now();
+  // セッション構築は数秒かかることがあるので、止まって見えないよう表示を変える
+  post({ type: "init-progress", model: "DEIM (検出) を展開中", loaded: 1, total: 1 });
   await detector.init(deimBuffer, preset.deim);
+  const tDeimReady = performance.now();
 
   // Load PARSeq model
   const parseqBuffer = await fetchModel(
@@ -104,8 +123,15 @@ async function initModels(presetId: string): Promise<void> {
     (loaded, total) =>
       post({ type: "init-progress", model: "PARSeq (認識)", loaded, total }),
   );
+  const tParseqFetched = performance.now();
+  post({ type: "init-progress", model: "PARSeq (認識) を展開中", loaded: 1, total: 1 });
   await recognizer.init(parseqBuffer, preset.parseq);
+  const tParseqReady = performance.now();
 
+  initTiming = {
+    downloadMs: Math.round((tDeimFetched - tStart) + (tParseqFetched - tDeimReady)),
+    sessionMs: Math.round((tDeimReady - tDeimFetched) + (tParseqReady - tParseqFetched)),
+  };
   currentPresetId = preset.id;
   post({ type: "init-done" });
 }
@@ -113,7 +139,7 @@ async function initModels(presetId: string): Promise<void> {
 async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
   try {
     const t0 = performance.now();
-    await initModels(presetId);
+    await ensureModels(presetId);
     const tModel = performance.now();
 
     // Decode image
@@ -183,6 +209,8 @@ async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
       isolated: typeof SharedArrayBuffer !== "undefined",
       cores: navigator.hardwareConcurrency || 0,
       modelMs: Math.round(tModel - t0),
+      downloadMs: initTiming.downloadMs,
+      sessionMs: initTiming.sessionMs,
       decodeMs: Math.round(tDecode - tModel),
       detectMs: Math.round(tDetect - tDecode),
       recognizeMs: Math.round(tRecognize - tDetect),
@@ -197,9 +225,15 @@ async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
 
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   const msg = e.data;
-  if (msg.type === "init") {
+  if (msg.type === "warmup") {
+    // ダウンロード済みのときだけ先に組む。未取得なら勝手に通信を始めない
+    const preset = getPreset(msg.presetId);
+    const ready =
+      (await isModelCached(preset.deim.name)) && (await isModelCached(preset.parseq.name));
+    if (ready) await ensureModels(msg.presetId).catch(() => {});
+  } else if (msg.type === "init") {
     try {
-      await initModels(msg.presetId);
+      await ensureModels(msg.presetId);
     } catch (err) {
       post({ type: "error", message: err instanceof Error ? err.message : String(err) });
     }
