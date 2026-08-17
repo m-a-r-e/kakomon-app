@@ -398,7 +398,7 @@ function buildQuestionCard(
     <section class="qcard">
       <h3><span>問題</span><span class="stamp" data-s="pending" aria-hidden="true">未</span></h3>
       <div class="field-inline">
-        <div class="field"><label>問題番号</label><input data-f="number" type="number" inputmode="numeric" value="${d.number ?? ""}"></div>
+        <div class="field"><label>問題番号</label><input data-f="number" type="text" placeholder="例: 1-1" value="${escapeHtml(d.number ?? "")}"></div>
         <div class="field"><label>正解(1-5)</label>
           <select data-f="answer"><option value="">未設定</option>${[1,2,3,4,5].map((n)=>`<option>${n}</option>`).join("")}</select>
         </div>
@@ -435,7 +435,7 @@ function buildQuestionCard(
 
   card.querySelector("[data-act=save]")!.addEventListener("click", async () => {
     const get = (f: string) => (card.querySelector(`[data-f=${f}]`) as HTMLInputElement).value.trim();
-    const number = get("number") ? parseInt(get("number"), 10) : null;
+    const number = get("number") || null;
     const yearStr = (document.getElementById("pgyear") as HTMLInputElement | null)?.value.trim() ?? "";
     const year = yearStr ? parseInt(yearStr, 10) : null;
     const question = (card.querySelector("[data-f=question]") as HTMLTextAreaElement).value.trim();
@@ -488,7 +488,10 @@ function addFigureToCard(card: HTMLElement, fig: FigureRecord): void {
 // ---------- 書き出しタブ ----------
 async function renderExport(): Promise<void> {
   const qs = await db.allQuestions();
-  qs.sort((a, b) => (a.year ?? 0) - (b.year ?? 0) || (a.number ?? 0) - (b.number ?? 0));
+  // 問題番号は "1-1" のような枝番を含むので数値混じりで自然順に並べる
+  qs.sort((a, b) =>
+    (a.year ?? 0) - (b.year ?? 0) ||
+    (a.number ?? "").localeCompare(b.number ?? "", "ja", { numeric: true }));
   view.innerHTML = "";
   if (qs.length === 0) {
     view.append(el(`<div class="empty">確定した問題がまだありません。</div>`));
@@ -518,13 +521,13 @@ async function renderExport(): Promise<void> {
       <li>
         <span class="stamp" data-s="reviewed">済</span>
         <div class="grow">
-          <div class="name">${q.year ?? "?"}年 第${q.number ?? "?"}問 ${escapeHtml(q.category || "未分類")}</div>
+          <div class="name">${q.year ?? "?"}年 問${escapeHtml(q.number ?? "?")} ${escapeHtml(q.category || "未分類")}</div>
           <div class="meta">${escapeHtml(q.question.slice(0, 40))}${q.question.length > 40 ? "…" : ""}</div>
         </div>
         <button class="ghost small">削除</button>
       </li>`);
     li.querySelector("button")!.addEventListener("click", async () => {
-      if (!confirm(`「第${q.number}問」を削除しますか?`)) return;
+      if (!confirm(`「問${q.number ?? "?"}」を削除しますか?`)) return;
       await db.deleteQuestion(q.id);
       render(); updateCounts();
     });

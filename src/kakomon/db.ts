@@ -24,7 +24,7 @@ export interface FigureRecord {
 export interface QuestionRecord {
   id: string; // e.g. "2023-q01"
   year: number | null;
-  number: number | null;
+  number: string | null; // 本の表記のまま。"3" や "1-1"
   category: string;
   question: string;
   choices: string[];
@@ -84,7 +84,10 @@ export const db = {
   putQuestion: (q: QuestionRecord) => tx("questions", "readwrite", (s) => s.put(q)),
   getQuestion: (id: string) =>
     tx<QuestionRecord | undefined>("questions", "readonly", (s) => s.get(id)),
-  allQuestions: () => tx<QuestionRecord[]>("questions", "readonly", (s) => s.getAll()),
+  // number は以前 number 型で保存していたため、読み出し時に文字列へ寄せる
+  allQuestions: async () =>
+    (await tx<QuestionRecord[]>("questions", "readonly", (s) => s.getAll()))
+      .map((q) => ({ ...q, number: q.number == null ? null : String(q.number) })),
   deleteQuestion: (id: string) => tx("questions", "readwrite", (s) => s.delete(id)),
 };
 

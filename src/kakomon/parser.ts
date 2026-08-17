@@ -14,7 +14,8 @@ export interface OcrLine {
 }
 
 export interface QuestionDraft {
-  number: number | null;
+  /** 本の表記をそのまま持つ。"3"(第3問) や "1-1"(□1-1) など */
+  number: string | null;
   question: string;
   choices: string[];
   rawText: string; // この問題に属する全行(修正時の参照用)
@@ -25,24 +26,39 @@ export function toHalfWidth(s: string): string {
   return s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
 }
 
+// 枝番見出し: "□1-1" "1-1" など(問題集の小問)。
+// 先頭のチェックボックスはOCRが □/口/■ などに揺れるため広めに許容し、
+// 区切りのハイフンも半角/全角/長音記号の取り違えを吸収する。
+const Q_HEAD_SUB = /^[□口■▢〼\s]*([0-9]{1,3})\s*[-−ー―—‐–ｰ]\s*([0-9]{1,3})(?![0-9])\s*(.*)$/;
 const Q_HEAD = /^[第\s]*([0-9]{1,3})\s*問/;
 const Q_HEAD_ALT = /^問\s*([0-9]{1,3})[^0-9]?/;
-// 選択肢: "1 ..." "1. ..." "１、..." "ア ..." など
-const CHOICE_NUM = /^([1-5])\s*[.．、,，)）:：]?\s*(.*)$/;
+// 選択肢: "①..." "(1)..." "1 ..." "1. ..." "１、..." "ア ..." など
+// (?![0-9]) はページ番号 "18" を選択肢1と誤検出しないためのガード
+const CHOICE_CIRCLED = /^([①②③④⑤])\s*[.．、,，)）:：]?\s*(.*)$/;
+const CHOICE_PAREN = /^[(（]\s*([1-5])\s*[)）]\s*(.*)$/;
+const CHOICE_NUM = /^([1-5])(?![0-9])\s*[.．、,，)）:：]?\s*(.*)$/;
 const CHOICE_KANA = /^([アイウエオ])\s*[.．、,，)）:：]?\s*(.*)$/;
 const KANA_INDEX: Record<string, number> = { ア: 1, イ: 2, ウ: 3, エ: 4, オ: 5 };
+const CIRCLED = "①②③④⑤";
+// ページ番号と柱(ページ端の見出し)。"18" "18 [1. インテリア販売]" など
+const PAGE_FURNITURE = /^(?:[0-9]{1,4}\s*(?:\[[^\]]*\])?|\[[^\]]*\]\s*[0-9]{1,4})$/;
 
 interface HeadMatch {
-  number: number;
+  number: string;
   rest: string;
 }
 
+const num = (s: string) => String(parseInt(s, 10)); // "０３" → "3"
+
 export function matchQuestionHead(line: string): HeadMatch | null {
   const t = toHalfWidth(line.trim());
-  let m = t.match(Q_HEAD);
-  if (m) return { number: parseInt(m[1], 10), rest: t.slice(m[0].length).trim() };
+  // 枝番("1-1")を先に見る。"第◯問" 形式は先頭が「第」なので取り違えない
+  let m = t.match(Q_HEAD_SUB);
+  if (m) return { number: `${num(m[1])}-${num(m[2])}`, rest: m[3].trim() };
+  m = t.match(Q_HEAD);
+  if (m) return { number: num(m[1]), rest: t.slice(m[0].length).trim() };
   m = t.match(Q_HEAD_ALT);
-  if (m) return { number: parseInt(m[1], 10), rest: t.slice(m[0].length).trim() };
+  if (m) return { number: num(m[1]), rest: t.slice(m[0].length).trim() };
   return null;
 }
 
@@ -53,7 +69,11 @@ interface ChoiceMatch {
 
 export function matchChoice(line: string): ChoiceMatch | null {
   const t = toHalfWidth(line.trim());
-  let m = t.match(CHOICE_NUM);
+  let m = t.match(CHOICE_CIRCLED);
+  if (m) return { index: CIRCLED.indexOf(m[1]) + 1, text: m[2] };
+  m = t.match(CHOICE_PAREN);
+  if (m) return { index: parseInt(m[1], 10), text: m[2] };
+  m = t.match(CHOICE_NUM);
   if (m) return { index: parseInt(m[1], 10), text: m[2] };
   m = t.match(CHOICE_KANA);
   if (m) return { index: KANA_INDEX[m[1]], text: m[2] };
@@ -104,6 +124,9 @@ export function parseLines(lines: OcrLine[]): QuestionDraft[] {
     }
 
     cur.rawText += "\n" + text;
+
+    // ページ番号や柱は本文ではないので、選択肢の折返しとして連結しない
+    if (PAGE_FURNITURE.test(toHalfWidth(text))) continue;
 
     const choice = matchChoice(text);
     // 選択肢は昇順に現れる前提。逆行するマッチ(問題文中の "2." 等)は誤検出として無視
