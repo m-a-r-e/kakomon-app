@@ -203,7 +203,8 @@ async function renderImport(): Promise<void> {
 モデル読込: ${sec(s.modelMs)}秒 (ダウンロード${sec(s.downloadMs)}秒 + 展開${sec(s.sessionMs)}秒)
 画像デコード: ${sec(s.decodeMs)}秒
 行の検出: ${sec(s.detectMs)}秒
-文字認識: ${sec(s.recognizeMs)}秒 (${s.lines}行 / 1行あたり${perLine}ms)</pre>
+文字認識: ${sec(s.recognizeMs)}秒 (${s.lines}行 / 1行あたり${perLine}ms)
+長い行の分割: +${s.splitCount}回</pre>
       </details>`));
   }
 

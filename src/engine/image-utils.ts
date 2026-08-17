@@ -94,3 +94,63 @@ export function resizeForParseq(
   outCtx.drawImage(drawSource, 0, 0, targetW, targetH);
   return outCtx.getImageData(0, 0, targetW, targetH);
 }
+
+/**
+ * 長い行を横方向に分割する位置を決める。
+ *
+ * PARSeqの入力は 768x16 固定で、resizeForParseq はアスペクト比を保たず引き伸ばす。
+ * そのため1行が長いほど1文字あたりの横解像度が落ちる(40文字なら約19px、
+ * 7文字なら約110px)。長い行だけを分割して個別に認識させることで、
+ * 本文の横解像度を短い行と同程度まで戻す。
+ *
+ * 分割位置は「インクの少ない列」を選び、文字の途中で切らないようにする。
+ * OffscreenCanvas を使わないので単体テストできる。
+ */
+export function planLineSplits(
+  src: { width: number; height: number; data: Uint8ClampedArray },
+  splitAboveAspect = 20,
+  targetAspect = 14,
+): { x: number; w: number }[] {
+  const w = src.width, h = src.height;
+  const whole = [{ x: 0, w }];
+  if (w <= 0 || h <= 0) return whole;
+  const aspect = w / h;
+  if (aspect <= splitAboveAspect) return whole;
+
+  const n = Math.ceil(aspect / targetAspect);
+  if (n <= 1) return whole;
+
+  // 列ごとのインク量(暗さの合計)
+  const ink = new Float32Array(w);
+  const d = src.data;
+  for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let y = 0; y < h; y++) {
+      const i = (y * w + x) * 4;
+      s += 255 - (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+    }
+    ink[x] = s;
+  }
+
+  // 等分位置の周辺で最もインクが薄い列を切れ目にする
+  const step = w / n;
+  const win = Math.max(1, Math.round(step * 0.2));
+  const cuts: number[] = [];
+  for (let i = 1; i < n; i++) {
+    const center = Math.round(step * i);
+    let best = center, bestInk = Infinity;
+    const from = Math.max(1, center - win), to = Math.min(w - 1, center + win);
+    for (let x = from; x <= to; x++) {
+      if (ink[x] < bestInk) { bestInk = ink[x]; best = x; }
+    }
+    cuts.push(best);
+  }
+
+  const ranges: { x: number; w: number }[] = [];
+  let prev = 0;
+  for (const c of cuts) {
+    if (c > prev) { ranges.push({ x: prev, w: c - prev }); prev = c; }
+  }
+  if (w > prev) ranges.push({ x: prev, w: w - prev });
+  return ranges.length ? ranges : whole;
+}

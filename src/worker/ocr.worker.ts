@@ -8,7 +8,7 @@
 import * as ort from "onnxruntime-web";
 import { DEIMDetector, type Detection } from "../engine/deim";
 import { PARSeqRecognizer } from "../engine/parseq";
-import { cropImageData, decodeImage } from "../engine/image-utils";
+import { cropImageData, decodeImage, planLineSplits } from "../engine/image-utils";
 import {
   detectionsToPage,
   findAll,
@@ -55,6 +55,7 @@ export type WorkerResponse =
       detectMs: number;
       recognizeMs: number;
       lines: number;
+      splitCount: number; // 長い行を分割して増えた推論回数
     }
   | {
       type: "result";
@@ -166,6 +167,7 @@ async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
     const lines = findAll(page, "LINE");
     const total = lines.length;
 
+    let splitCount = 0;
     const resultLines: {
       text: string;
       x: number;
@@ -192,8 +194,19 @@ async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
       // Crop line from original image
       const lineImg = cropImageData(imageData, x, y, w, h);
 
-      // Recognize
-      const text = await recognizer!.read(lineImg);
+      // Recognize (長い行は横に分割してから認識し、1文字あたりの解像度を確保する)
+      const parts = planLineSplits(lineImg);
+      let text: string;
+      if (parts.length === 1) {
+        text = await recognizer!.read(lineImg);
+      } else {
+        splitCount += parts.length - 1;
+        const pieces: string[] = [];
+        for (const p of parts) {
+          pieces.push(await recognizer!.read(cropImageData(lineImg, p.x, 0, p.w, h)));
+        }
+        text = pieces.join("");
+      }
       line.attrs.STRING = text;
       resultLines.push({ text, x, y, w, h, conf });
 
@@ -215,6 +228,7 @@ async function runOcr(imageBlob: Blob, presetId: string): Promise<void> {
       detectMs: Math.round(tDetect - tDecode),
       recognizeMs: Math.round(tRecognize - tDetect),
       lines: total,
+      splitCount,
     });
 
     post({ type: "result", lines: resultLines, detections, page });
