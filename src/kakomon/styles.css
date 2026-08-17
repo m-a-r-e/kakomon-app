@@ -235,7 +235,9 @@ details.raw pre {
 }
 
 /* ---- crop ---- */
-.cropwrap { position: relative; margin: 10px 0; touch-action: none; }
+/* 通常は縦スクロールを通し、図の切り抜き中だけタッチを占有する */
+.cropwrap { position: relative; margin: 10px 0; touch-action: pan-y; }
+.cropwrap.cropping { touch-action: none; }
 .cropwrap canvas { width: 100%; display: block; border: 1px solid var(--rule-strong); }
 .crophint {
   font-size: 12px;

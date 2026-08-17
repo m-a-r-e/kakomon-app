@@ -340,6 +340,7 @@ async function renderReviewEditor(pageId: string): Promise<void> {
     crop.active = false;
     crop.targetCard = null;
     crop.rect = null;
+    wrap.classList.remove("cropping");
     draw();
     hint.textContent = "";
   });
@@ -425,6 +426,7 @@ function buildQuestionCard(
   card.querySelector("[data-act=crop]")!.addEventListener("click", () => {
     crop.active = true;
     crop.targetCard = card;
+    canvas.parentElement!.classList.add("cropping");
     hint.textContent = "上の画像を指でドラッグして、図の範囲を囲ってください";
     canvas.scrollIntoView({ behavior: "smooth", block: "start" });
   });
