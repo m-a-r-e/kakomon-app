@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 import { resolve } from "node:path";
 
 export default defineConfig({
-  base: "./",
+  base: "/kakomon-app/",
   build: {
     rollupOptions: {
       input: {
