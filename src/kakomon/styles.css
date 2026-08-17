@@ -1,0 +1,277 @@
+/* ---- tokens: 試験問題用紙の意匠 ----
+   paper: 上質紙の白 / ink: 藍墨(印刷インク) / shu: 朱(採点ペン・印)
+   rule: 罫線の淡青 / 見出しは明朝・数値は等幅 */
+:root {
+  --paper: #fbfaf7;
+  --paper-raised: #ffffff;
+  --ink: #1c2433;
+  --ink-soft: #5a6475;
+  --rule: #d9dfe8;
+  --rule-strong: #b8c2d0;
+  --shu: #c22f1f;
+  --shu-soft: #f6e3e0;
+  --focus: #2b5fb8;
+  --radius: 6px;
+  --font-mincho: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  --font-body: "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: "SF Mono", "Roboto Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.6;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- header: 原稿用紙の枡目 ---- */
+header.app {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 23px, var(--rule) 23px 24px),
+    repeating-linear-gradient(0deg, transparent 0 23px, var(--rule) 23px 24px),
+    var(--paper-raised);
+  border-bottom: 2px solid var(--ink);
+  padding: 14px 16px 10px;
+}
+header.app h1 {
+  font-family: var(--font-mincho);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  margin: 0;
+}
+header.app .sub {
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.1em;
+}
+
+main { padding: 16px; max-width: 720px; margin: 0 auto; }
+
+/* ---- tab bar ---- */
+nav.tabs {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  background: var(--paper-raised);
+  border-top: 1px solid var(--rule-strong);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 20;
+}
+nav.tabs button {
+  flex: 1;
+  border: 0;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 12px 0 10px;
+  color: var(--ink-soft);
+  border-top: 2px solid transparent;
+  margin-top: -1px;
+}
+nav.tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-top-color: var(--shu);
+  font-weight: 600;
+}
+nav.tabs button .count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--shu);
+  margin-left: 2px;
+}
+
+/* ---- 済印スタンプ(ステータス) ---- */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  font-family: var(--font-mincho);
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+  transform: rotate(-6deg);
+  border: 1.5px solid var(--rule-strong);
+  color: var(--ink-soft);
+  background: var(--paper-raised);
+}
+.stamp[data-s="ocr_done"] { border-color: var(--ink); color: var(--ink); }
+.stamp[data-s="reviewed"] {
+  border-color: var(--shu);
+  color: var(--shu);
+  background: var(--shu-soft);
+}
+.stamp[data-s="error"] { border-color: var(--shu); color: var(--shu); border-style: dashed; }
+
+/* ---- lists ---- */
+ul.rows { list-style: none; margin: 0; padding: 0; }
+ul.rows li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--rule);
+}
+ul.rows img.thumb {
+  width: 52px; height: 68px;
+  object-fit: cover;
+  border: 1px solid var(--rule-strong);
+  background: #fff;
+  flex: none;
+}
+ul.rows .grow { flex: 1; min-width: 0; }
+ul.rows .name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+ul.rows .meta { font-size: 12px; color: var(--ink-soft); font-family: var(--font-mono); }
+
+/* ---- buttons ---- */
+button.primary, button.ghost, button.danger, label.filebtn {
+  font-family: var(--font-body);
+  font-size: 15px;
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  border: 1.5px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  width: 100%;
+  display: block;
+  text-align: center;
+  cursor: pointer;
+}
+button.ghost {
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+button.danger {
+  background: var(--paper-raised);
+  color: var(--shu);
+  border-color: var(--shu);
+}
+button.small { width: auto; padding: 7px 14px; font-size: 13px; }
+button:disabled { opacity: 0.4; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+label.filebtn input { display: none; }
+.btnrow { display: flex; gap: 10px; margin: 14px 0; }
+.btnrow > * { flex: 1; }
+
+/* ---- progress ---- */
+.progress {
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  border-radius: var(--radius);
+  height: 10px;
+  overflow: hidden;
+  margin: 6px 0;
+}
+.progress > div { height: 100%; background: var(--ink); width: 0%; transition: width 0.2s; }
+.progress-label { font-size: 12px; font-family: var(--font-mono); color: var(--ink-soft); }
+
+/* ---- forms ---- */
+.qcard {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.qcard.confirmed { border-color: var(--shu); }
+.qcard h3 {
+  font-family: var(--font-mincho);
+  font-size: 15px;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 3px; }
+.field input, .field textarea, .field select {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 15px;
+  padding: 9px 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+}
+.field textarea { min-height: 84px; line-height: 1.6; }
+.field-inline { display: flex; gap: 10px; }
+.field-inline .field { flex: 1; }
+.choice-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.choice-row .num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+  width: 16px;
+  flex: none;
+}
+.choice-row input { flex: 1; }
+details.raw { margin: 8px 0; }
+details.raw summary { font-size: 12px; color: var(--ink-soft); cursor: pointer; }
+details.raw pre {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  background: var(--paper);
+  padding: 8px;
+  border-radius: var(--radius);
+  max-height: 200px;
+  overflow: auto;
+}
+
+/* ---- crop ---- */
+.cropwrap { position: relative; margin: 10px 0; touch-action: none; }
+.cropwrap canvas { width: 100%; display: block; border: 1px solid var(--rule-strong); }
+.crophint {
+  font-size: 12px;
+  color: var(--shu);
+  margin: 6px 0;
+}
+.figs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.figs .fig { position: relative; }
+.figs img { height: 72px; border: 1px solid var(--rule-strong); display: block; }
+.figs button {
+  position: absolute; top: -8px; right: -8px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--shu);
+  background: var(--paper-raised);
+  color: var(--shu);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.empty {
+  text-align: center;
+  color: var(--ink-soft);
+  padding: 48px 16px;
+  font-size: 14px;
+}
+.notice {
+  font-size: 12px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--rule);
+  margin-top: 24px;
+  padding-top: 10px;
+}
+.notice a { color: var(--ink-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

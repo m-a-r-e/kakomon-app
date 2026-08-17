@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#fbfaf7" />
+  <title>過去問取込帳</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <script src="./coi-serviceworker.js"></script>
+</head>
+<body>
+  <header class="app">
+    <h1>過去問取込帳</h1>
+    <div class="sub">撮影 → 文字認識 → 確認 → JSON/CSV書き出し(通信なし・端末内で完結)</div>
+  </header>
+
+  <main id="view"></main>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="import" aria-selected="true">取り込み<span class="count" id="c-import"></span></button>
+    <button role="tab" data-tab="review" aria-selected="false">確認<span class="count" id="c-review"></span></button>
+    <button role="tab" data-tab="export" aria-selected="false">書き出し<span class="count" id="c-export"></span></button>
+  </nav>
+
+  <script type="module" src="/src/kakomon/main.ts"></script>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol === "https:") {
+      addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+    }
+  </script>
+</body>
+</html>
